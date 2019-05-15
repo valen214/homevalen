@@ -1,0 +1,81 @@
+{
+    "editor.detectIndentation": false,
+    "editor.fontFamily": "Consolas, 'Courier New', monospace",
+    "editor.fontSize": 12,
+    "editor.rulers": [80],
+    "editor.tabSize": 4,
+    /*
+    "editor.tokenColorCustomizations": {
+        "numbers": "#ff8000",
+        "variables": "#884400",
+        "functions": "#2b89a0",
+        "types": "#8b8bff",
+        // "strings": "#7c7a7a",
+        // "keywords": "#FF0000",
+    },
+    */
+    "editor.wordWrap": "wordWrapColumn",
+    "editor.wordWrapColumn": 80,
+    "editor.autoClosingBrackets": "never",
+    "editor.autoClosingQuotes": "never",
+    "editor.quickSuggestions": {
+        "strings": true,
+        "other": false,
+    },
+    "editor.acceptSuggestionOnEnter": "smart",
+    "editor.suggestOnTriggerCharacters": true,
+    "editor.autoIndent": false,
+    "editor.tokenColorCustomizations": {
+
+    },
+
+    "explorer.autoReveal": true,
+    
+    "editor.scrollbar.horizontal": "hidden",
+    "editor.scrollbar.vertical": "hidden",
+    "editor.hideCursorInOverviewRuler": true,
+
+    "workbench.colorTheme": "Visual Studio Light",
+    "workbench.colorCustomizations": {
+        "settings.numberInputForeground": "#ff8000",
+    },
+    "workbench.editor.tabCloseButton": "off",
+    "workbench.settings.editor": "json",
+    "workbench.settings.openDefaultSettings": false,
+
+    // "eslint.nodePath": "C:/Users/User/AppData/Roaming/npm/node_modules",
+    
+    /*
+    "jshint.options": {
+        "esversion": 6,
+    },
+    "jshint.lintHTML": true,
+    "jshint.nodePath": "C:/Users/User/AppData/Roaming/npm/node_modules",
+    */
+
+    "window.menuBarVisibility": "default",
+    
+    "git.path": "C:/Users/User/AppData/Local/GitHubDesktop/app-1.6.5/resources/app/git/cmd/git.exe",
+
+    "python.pythonPath": "/bin/python3",
+    "python.autoComplete.addBrackets": false,
+    "python.linting.pylintEnabled": true,
+    "python.linting.enabled": true,
+
+    "explorer.confirmDelete": false,
+    "[kotlin]": {
+    },
+    "editor.renderControlCharacters": true,
+
+    "kotlin.debounceTime": 1000,
+    "kotlin.wtf": "",
+
+    "breadcrumbs.enabled": false,
+
+    "editor.minimap.enabled": true,
+    "explorer.confirmDragAndDrop": false,
+
+    "remote.SSH.configFile": "D:/GoogleDrive/sync/main-custom-project/app/.vscode/ssh.config",
+    "git.ignoreMissingGitWarning": true
+
+}

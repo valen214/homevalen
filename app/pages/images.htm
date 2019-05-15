@@ -1,0 +1,189 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>index.htm</title>
+<link rel="icon" type="image/x-icon" href="/favicon.ico" />
+<style>
+html, body, div, span, img, a, canvas, pre {
+    box-sizing: border-box;
+}
+</style>
+
+
+<script type="text/javascript" src="/util.js"></script>
+<script type="text/javascript" src="/google_api.js"></script>
+
+
+</head>
+<body>
+<style>
+#clear_images {
+    border: 1px solid #aaa;
+    border-radius: 2px;
+    width: 120px;
+    height: 70px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+#clear_images:hover {
+    transform: translateY(1px);
+}
+
+</style>
+
+
+<input id="file_upload" type="file" accept="image/*" />
+<div id="clear_images">clear images</div><br />
+<h5>selected</h5>
+<canvas id="image_canvas"></canvas><br />
+<script>
+const clear_images = document.getElementById("clear_images");
+clear_images.addEventListener("click", e => {
+    fetch(new Request("/images/clear_images")).then(
+        response => response.text()).then(
+        text => console.log("images cleared, server response:", text));
+});
+
+function pasteImage(e){
+    const func = pasteImage.f || (pasteImage.f = function f(i, t, s){
+        if(s.length > 60){
+            s = s.slice(0, 60) + "...";
+        }
+        console.log(`paste item #${i} <${t}>: ${s}`);
+    });
+
+    var data = (e.clipboardData ||
+            e.originalEvent && e.originalEvent.clipboardData);
+    var items = data && data.items;
+
+    if(items){
+        var _URL = window.URL || window.webkitURL;
+        for(var [i, item] of Array.prototype.entries.call(items)){
+            if(item.kind === "string" && item.type.match(/^text/)){
+                new Promise(resolve => item.getAsString(resolve)
+                ).then(pasted_string => func(i, "string", pasted_string));
+                // rmb not to use 'item' in promise.then
+            } else if(item.kind == "file"){
+                var f = item.getAsFile();
+                f.readAs("buffer", loadImage);
+                
+                // var url = _URL.createObjectURL(f);
+                // func(i, item.kind, url);
+            }
+        }
+    }
+}
+window.addEventListener("paste", pasteImage);
+
+function loadImage(data){
+    if(data instanceof ArrayBuffer){
+        console.log("loadImage(): image received, loading");
+
+        const _URL = window.URL || window.webkitURL;
+        const img = new Image();
+        const url = _URL.createObjectURL(new Blob(
+                [new Uint8Array(data)], // { type: "text/plain" }
+        ));
+        console.log("loadImage(): created object url:", url);
+
+        const cvs = document.getElementById("image_canvas");
+        const ctx = cvs.getContext("2d");
+        new Promise((resolve, error) => {
+            img.addEventListener("load", resolve);
+            img.addEventListener("error", error);
+            img.src = url;
+        }).then(e => {
+            console.assert(this === window);
+            console.assert(e.target === img);
+
+            cvs.style.maxWidth = "100%";
+            cvs.style.height = "auto";
+            cvs.width = img.width;
+            cvs.height = img.height;
+
+            ctx.drawImage(img, 0, 0);
+            var data = cvs.toDataURL("image/png", 1.0);
+            POST(data);
+
+            new Promise(resolve => {
+                cvs.toBlob(resolve);
+            }).then(blob => new Promise(resolve => {
+                File.prototype.readAs.call(blob, "binarystring", resolve);
+            })).then(data => {
+               console.log("data converted from canvas:", data); 
+            });;
+        }).catch(e => {
+            console.error("loadImage(): image loading failed; url:", url);
+        });
+
+    } else{
+        console.error("loadImage(): <data> is not ArrayBuffer");
+    }
+}
+
+function POST(data){
+    var XHR = new XMLHttpRequest();
+    XHR.open("POST", "");
+    XHR.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+    // XHR.setRequestHeader("Content-Length", data.length);
+    XHR.send(data);
+}
+
+// upload button listener
+var file_upload = document.getElementById("file_upload");
+new Promise(resolve => {
+    file_upload.addEventListener("change", resolve);
+}).then(e => new Promise(resolve => {
+    console.assert(e.target === file_upload);
+    file_upload.files[0].readAs("buffer", loadImage);
+}));
+
+
+
+document.addEventListener("load", e => {
+    console.log("document laoded");
+});
+
+// retrieve images from server
+new Promise(resolve => {
+    if(1) return;
+    var XHR = new XMLHttpRequest();
+    XHR.open("GET", "get_images");
+    XHR.responseType = "json";
+    XHR.addEventListener("load", resolve);
+    XHR.send();
+}).then(e => {
+    var images = e.target.response;
+    console.log("images retrieved from server:", images);
+
+    for(var data of images){
+        var img = new Image();
+        img.style.maxWidth = "100%";
+        img.style.height = "auto";
+        img.src = data;
+        document.body.appendChild(img);
+    }
+});
+</script>
+<script>
+/*
+console.log = (function(__log){
+  return function(...args){
+    __log(...args);
+  };
+})(console.log);
+*/
+
+console.log(window.onhashchange);
+console.log("onhashchange" in window);
+window.addEventListener("hashchange", (e) =>{
+  console.log("hash: " + window.location.hash);
+}, false);
+window.location.hash = "HI";
+</script>
+</body>
+</html>
