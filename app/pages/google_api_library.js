@@ -393,12 +393,12 @@ async function addPasteItem(data, type, name){
             setPasteInfo(info);
         });
     } else{
+        let info = await getPasteInfo();
         let path = [
             Date.now(), info.length, randomstring(5),
             date_string(), time_string(), name
         ].join("_");
         let res = await uploadToAppFolder(data, type, path);
-        let info = await getPasteInfo();
 
         info[info.length] = {
             "type": type,
