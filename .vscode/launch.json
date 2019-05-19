@@ -1,0 +1,11 @@
+{
+    "version": "0.1.0",
+    "configurations": [
+        {
+            "name": "paste everything",
+            "type": "chrome",
+            "request": "launch",
+            "url": "http://homevalen.com/paste.htm",
+        }
+    ],
+}

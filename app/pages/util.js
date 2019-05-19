@@ -2,9 +2,11 @@
 (function(window, undefined){
 
 function define(dependencies, name, func){
-    dependencies.split(".");
+    if(dependencies){
+        dependencies.split(".");
+    }
     if(name in window){
-        console.error(`window["${name}"] is non null`);
+        console.error(`window["${name}"] already exists`);
     } else{
         if(!func.name){
             func.name = name;
@@ -18,7 +20,7 @@ Image.prototype.isLoaded = function(){
 };
 
 
-File.prototype.readAs = function readAs(type){
+window.readAs = File.prototype.readAs = function readAs(type){
     return new Promise(resolve => {
         var reader = new FileReader();
         reader.addEventListener("loadend", resolve);
@@ -46,7 +48,7 @@ File.prototype.readAs = function readAs(type){
             break;
         }
     
-    });
+    }).then(e => e.target.result);
 };
 
 
@@ -93,5 +95,32 @@ function scaleImage(img, width, height, callback){
     });
 });
 
+Image.prototype.convert = function convertImage(img, type){
 
+};
+
+window.randomstring = function randomstring(length){
+    return crypto.getRandomValues(new Uint8Array(length)).reduce((l, r) => (
+    l + "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"[
+        Math.trunc(r * 62 / 256) // String.prototype.charAt() works too
+    ]), "");
+};
+
+Object.defineProperty(window, "MONTH_SHORT", {
+    value: Object.freeze([
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ]),
+    configurable: false,
+    enumerable: false,
+    writable: false,
+});
+window.date_string = function date_string(){
+    let d = new Date();
+    return d.getDate() + MONTH_SHORT[d.getMonth()] + d.getFullYear();
+};
+window.time_string = function time_string(){
+    let d = new Date();
+    return d.getHours() + d.getMinutes() + d.getSeconds();
+}
 })(window);

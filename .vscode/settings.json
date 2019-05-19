@@ -4,16 +4,6 @@
     "editor.fontSize": 12,
     "editor.rulers": [80],
     "editor.tabSize": 4,
-    /*
-    "editor.tokenColorCustomizations": {
-        "numbers": "#ff8000",
-        "variables": "#884400",
-        "functions": "#2b89a0",
-        "types": "#8b8bff",
-        // "strings": "#7c7a7a",
-        // "keywords": "#FF0000",
-    },
-    */
     "editor.wordWrap": "wordWrapColumn",
     "editor.wordWrapColumn": 80,
     "editor.autoClosingBrackets": "never",
@@ -25,9 +15,7 @@
     "editor.acceptSuggestionOnEnter": "smart",
     "editor.suggestOnTriggerCharacters": true,
     "editor.autoIndent": false,
-    "editor.tokenColorCustomizations": {
-
-    },
+    "editor.matchBrackets": false,
 
     "explorer.autoReveal": true,
     
@@ -35,29 +23,37 @@
     "editor.scrollbar.vertical": "hidden",
     "editor.hideCursorInOverviewRuler": true,
 
-    "workbench.colorTheme": "Visual Studio Light",
+    "workbench.colorTheme": "Visual Studio Dark",
     "workbench.colorCustomizations": {
         "settings.numberInputForeground": "#ff8000",
+    },
+    "editor.tokenColorCustomizations": {
+    /*
+        "numbers": "#ff8000",
+        "types": "#8b8bff",
+        "keywords": "#5a5bff",
+    */
+        "variables": "#ff99b4",
+        "strings": "#87cee8",
+        "functions": "#ddd",
+        "keywords": "#6565ff",
+        "types": "#9acd32",
     },
     "workbench.editor.tabCloseButton": "off",
     "workbench.settings.editor": "json",
     "workbench.settings.openDefaultSettings": false,
 
-    // "eslint.nodePath": "C:/Users/User/AppData/Roaming/npm/node_modules",
-    
-    /*
-    "jshint.options": {
-        "esversion": 6,
+    "eslint.enable": true,
+    "eslint.nodePath": "E:/workspace/node_modules",
+    "eslint.options": {
+        "configFile": "E:/workspace/node_modules/.bin/.eslintrc.json",
     },
-    "jshint.lintHTML": true,
-    "jshint.nodePath": "C:/Users/User/AppData/Roaming/npm/node_modules",
-    */
 
     "window.menuBarVisibility": "default",
     
     "git.path": "C:/Users/User/AppData/Local/GitHubDesktop/app-1.6.5/resources/app/git/cmd/git.exe",
 
-    "python.pythonPath": "/bin/python3",
+    "python.pythonPath": "C:/Program Files/Python37/python.exe",
     "python.autoComplete.addBrackets": false,
     "python.linting.pylintEnabled": true,
     "python.linting.enabled": true,
@@ -75,7 +71,39 @@
     "editor.minimap.enabled": true,
     "explorer.confirmDragAndDrop": false,
 
-    "remote.SSH.configFile": "D:/GoogleDrive/sync/main-custom-project/app/.vscode/ssh.config",
-    "git.ignoreMissingGitWarning": true
+    /*
 
+    "remote.SSH.configFile":
+        "D:/GoogleDrive/sync/main-custom-project/app/.vscode/ssh.config",
+
+    */
+    "git.ignoreMissingGitWarning": true,
+
+    "bracket-pair-colorizer-2" :{
+        "showBracketsInGutter": true,
+        "forceIterationColorCycle": false,
+        "forceUniqueOpeningColor": false,
+        "showHorizontalScopeLine": false,
+        "colors": [
+            /*
+            https://en.wikipedia.org/wiki/Web_colors#X11_color_names
+            */
+            "OrangeRed",
+            "Orange",
+            "Gold",
+            "Lime",
+            "DeepSkyBlue",
+            "MediumSlateBlue",
+        ],
+        "demo": [[[[[[[[[[[
+
+        ]]]]]]]]]]],
+        "highlightActiveScope": true,
+        "activeScopeCSS": [
+            "borderStyle : solid",
+            "borderWidth : 0.5px",
+            "borderColor : {color}",
+            "opacity: 0.5"
+        ],
+    },
 }
