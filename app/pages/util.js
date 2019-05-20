@@ -117,10 +117,12 @@ Object.defineProperty(window, "MONTH_SHORT", {
 });
 window.date_string = function date_string(){
     let d = new Date();
-    return d.getDate() + MONTH_SHORT[d.getMonth()] + d.getFullYear();
+    return "" + d.getDate() + MONTH_SHORT[d.getMonth()] + d.getFullYear();
 };
 window.time_string = function time_string(){
     let d = new Date();
-    return d.getHours() + d.getMinutes() + d.getSeconds();
+    return [
+            d.getHours(), d.getMinutes(), d.getSeconds()
+    ].reduce((l, r) => l + ("00" + r).slice(-2), "");
 }
 })(window);

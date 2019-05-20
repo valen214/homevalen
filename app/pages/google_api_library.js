@@ -298,7 +298,7 @@ window.getFromAppFolderByNames = getFromAppFolderByNames;
 function deleteFromAppFolderByID(id){
     return gapi.client.drive.files.delete({
         "fileId": id
-    }).then(res => console.log("delete id:%s completed, res:", id, res),
+    }).then(res => console.log("deleted id:%s completed, res:", id, res),
         e => console.log("delete failed:", e));
 }
 window.deleteFromAppFolderByID = deleteFromAppFolderByID;
@@ -318,7 +318,7 @@ window.deleteFromAppFolder = function deleteFromAppFolder(name){
         }
     })).then(id => gapi.client.drive.files.delete({
         "fileId": id
-    })).then(res => console.log("delete %s completed, res:", name, res),
+    })).then(res => console.log("deleted %s completed, res:", name, res),
         e => console.log("delete failed:", e));
 };
 
@@ -342,7 +342,8 @@ function getPasteInfoID(first=true){
             uploadToAppFolder(JSON.stringify({
                 "length": 0,
             }), "application/json", "paste_info.json"
-            ).then(() => getPasteInfoID(false));
+            ).then(obj => resolve(obj.id));
+            // ).then(() => getPasteInfoID(false)).then(resolve);
         } else{
             console.error("FATAL: paste_info.json creation failed");
         }
