@@ -122,7 +122,17 @@ window.date_string = function date_string(){
 window.time_string = function time_string(){
     let d = new Date();
     return [
-            d.getHours(), d.getMinutes(), d.getSeconds()
+        d.getHours(), d.getMinutes(), d.getSeconds()
     ].reduce((l, r) => l + ("00" + r).slice(-2), "");
 }
 })(window);
+
+/*
+Blob
+ArrayBuffer
+ArrayBufferView
+String - Data URL
+String - Binary String
+
+
+*/

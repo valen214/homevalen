@@ -19,7 +19,7 @@ html, body, div, span, img, a, canvas, pre {
 </head>
 <body>
 <style>
-#login, #clear_clips, #file_label {
+#login_button, #clear_clips, #file_label {
     border: 1px solid #aaa;
     border-radius: 2px;
     width: 120px;
@@ -29,8 +29,10 @@ html, body, div, span, img, a, canvas, pre {
     align-items: center;
     justify-content: center;
     margin: 0;
+    user-select: none;
+    cursor: pointer;
 }
-#login:hover,
+#login_button:hover,
 #clear_clips:hover,
 #file_label:hover {
     /*
@@ -47,12 +49,36 @@ html, body, div, span, img, a, canvas, pre {
     display: none;
 }
 
+.clip_item {
+    border: 1px solid #aaa;
+    border-radius: 2px;
+    width: 100%;
+    max-width: 100%;
+    min-height: 50px;
+    max-height: 256px;
+
+    display: inline-flex;
+}
+.cilp_item > .rm,
+.clip_item > .cp {
+    height: 100%;
+    width: 160px;
+    border: 1px solid #aaa;
+    border-radius: 2px;
+}
+.clip_item > img {
+    width: 100%;
+    max-height: 100%;
+    object-fit: scale-down;
+    object-position: left;
+}
+
 </style>
 
 
 <input id="file_upload" type="file" accept="*/*" multiple="false"/>
 
-<span id="login">login</span
+<span id="login_button">login</span
 ><span id="file_label">select file</span
 ><span id="clear_clips">clear clips</span
 ><br />
@@ -60,32 +86,41 @@ html, body, div, span, img, a, canvas, pre {
 <canvas id="clip_canvas"></canvas><br />
 
 <script>
+const login_button = document.getElementById("login_button");
 const file_upload = document.getElementById("file_upload");
 const clear_clips = document.getElementById("clear_clips");
 const file_label = document.getElementById("file_label");
 
 
-
+login_button.addEventListener("click", e => {
+    if(GoogleAuth.isSignedIn.get()){
+        console.log("%cuser has signed in", "color:#22d");
+    } else{
+        GoogleAuth.signIn();
+    }
+});
 file_label.addEventListener("click", e => {
     // upload button listener
     file_upload.click();
 });
-file_upload.addEventListener("change", e => {
+file_upload.addEventListener("change", async e => {
     const f = file_upload.files[0];
     if(!f) return;
-    f.readAs("buffer").then(buf => {
-        console.log("buffer:", buf);
-        console.log('<input type="file"> received object File(' +
-            `name=${f.name}, type=${f.type}, size=${f.size}), ` +
-            `head(100)=${ // base64
-                btoa(String.fromCharCode(...new Uint8Array(buf.slice(0,100))))
-            }`);
-        pasteClip(buf, f.type, f.name);
-    });
+    let buf = await f.readAs("buffer");
+    console.log("buffer:", buf);
+    console.log('<input type="file"> received object File(' +
+        `name=${f.name}, type=${f.type}, size=${f.size}), ` +
+        `head(c=100)=${
+            btoa(String.fromCharCode(...new Uint8Array(buf.slice(0,100))))
+        }`);
+    pasteClip(buf, f.type, f.name);
 });
 
-clear_clips.addEventListener("click", e => {
-    
+clear_clips.addEventListener("click", async e => {
+    (await listAppFolder()).forEach((f, i) => {
+        deleteFromAppFolderByID(f.id);
+        console.log("deleting:", f.id);
+    })
 });
 
 
@@ -134,8 +169,6 @@ function showImage(data){
 
     const img = new Image();
 
-    console.log("pasteClip(): created object url:", url);
-
     new Promise((resolve, error) => {
         img.addEventListener("load", resolve);
         img.addEventListener("error", error);
@@ -155,18 +188,80 @@ function showImage(data){
         console.error("loadImage(): image loading failed; url:", url);
     });
 }
+async function showClipItem({ type, name, location, body, id, blob }){
+    const parent = document.body;
 
-function pasteClip(data, type, name){
+    var elem = document.createElement("span");
+    elem.classList.add("clip_item");
+    elem.id = id;
 
+    var rm = document.createElement("span");
+    rm.className = "rm";
+    rm.innerText = "remove";
+    rm.addEventListener("click", e => {
+        removePasteItemByID(id);
+    });
+    elem.insertAdjacentElement("beforeend", rm);
+
+    var cp = document.createElement("span");
+    cp.className = "cp";
+    cp.innerText = "copy";
+    cp.addEventListener("click", e => {
+
+    });
+    elem.insertAdjacentElement("beforeend", cp);
 
     if(type.match(/^image/)){
-        console.log("pasteClip(): received image, loading");
+        let img = new Image();
+        if(!blob) blob = await fetchFromAppFolderByID(id).blob();
+        img.src = URL.createObjectURL(blob);
+        elem.insertAdjacentElement("afterbegin", img);
+        // showImage(await (await new Response(blob)).arrayBuffer());
+    } else if(type.match(/^text/)){
+        elem.insertAdjacentElement("afterbegin",
+                document.createTextNode(body));
+    }
+    parent.appendChild(elem);
+}
 
+async function pasteClip(data, type, name){
+    if(type.match(/^image/)){
         showImage(data);
-        addPasteItem(data, type, name);
+        let item = await addPasteItem(data, type, name);
+        if(item){
+            item.blob = await fetchFromAppFolderByID(item.id).blob();
+            showClipItem(item);
+        } else{
+            console.error("FATAL: pasteClip() not receiving item");
+        }
     } else{
 
     }
+}
+
+(async () => {
+    while(!window.hasOwnProperty("gapi"))
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+    let info = await getPasteItems();
+    [...Array(info.length).keys()].forEach(i => {
+        let item = info[i];
+        showClipItem(item);
+    });
+})();
+
+function func1(){
+    (async () => {
+        await [...Array(5).keys()].forEach(async i => {
+            console.log(`started task #${i}`);
+            console.log(`task #${i} lasted ${
+                await (t => new Promise(resolve =>
+                    setTimeout(resolve, t, t)))(Math.random() * 5000)
+            }`);
+            console.log(`ended task #${i}`);
+        });
+        console.log("after code block");
+    })();
 }
 
 document.addEventListener("load", e => {

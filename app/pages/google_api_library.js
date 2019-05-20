@@ -35,28 +35,6 @@ new Promise(resolve => {
     window.GoogleAuth = gapi.auth2.getAuthInstance();
     GoogleAuth.isSignedIn.listen(userSigninStatus);
 
-    var isAuthed = userSigninStatus();
-    if(!isAuthed){
-        GoogleAuth.signIn();
-        userSigninStatus();
-    }
-});
-
-function grantScope(scope){
-    const user = GoogleAuth.currentUser.get();
-    user.grant({
-        'scope': scope
-    });
-    userSigninStatus(scope);
-}
-
-window.userSigninStatus = function userSigninStatus(status){
-    if(status){
-        console.log("%cuser has signed in", "color:#22d");
-    } else{
-        console.log("%cuser has not signed in", "color:#d22");
-    }
-
     const user = GoogleAuth.currentUser.get();
     // const isAuthed = user.hasGrantedScopes(scope);
     const scopes = user.getGrantedScopes();
@@ -67,7 +45,24 @@ window.userSigninStatus = function userSigninStatus(status){
                 user.getAuthResponse().access_token);
     }
 
-    return scopes;
+    if(!userSigninStatus()){
+        GoogleAuth.signIn();
+        userSigninStatus();
+    }
+});
+
+function grantScope(scope){
+    const user = GoogleAuth.currentUser.get();
+    user.grant({
+        'scope': scope
+    });
+}
+
+window.userSigninStatus = function userSigninStatus(status){
+    let out = GoogleAuth.isSignedIn.get();
+    console.log(`%cuserSigninStatus(status=${status}): ${out}`,
+            out ? "color:#2f2" : "color:#d22");
+    return out;
 }
 
 window.getAlbumByName = function getAlbumByName(name, nextPageToken=null){
@@ -207,19 +202,23 @@ window.listAppFolder = listAppFolder;
 
 // application/vnd.google-apps.folder
 
-function uploadToAppFolder(data, type, name){
+async function uploadToAppFolder(data, type, name){
+    /*
+    if(ArrayBuffer.isView(data) || data instanceof ArrayBuffer){
+        data = await new Response(data).blob();
+    }
+    */
+
+    console.log(`uploadToAppFolder(data=${
+            new Uint8Array(data.slice(0, 256))}`);
+    
     const nl = "\r\n";
     let meta = "Content-Type: application/json; charset=UTF-8" + nl + nl +
         JSON.stringify({
             "name": name,
             "parents": ["appDataFolder"],
         });
-    let body;
-    if(typeof data === "string"){
-        body = data;
-    } else{
-        body = new TextDecoder("utf-8").decode(data);
-    }
+    let body = await (await new Response(data)).text();
 
     let boundary = randomstring(16);
     while(meta.includes(boundary) || body.includes(boundary)){
@@ -230,33 +229,37 @@ function uploadToAppFolder(data, type, name){
         }
     }
 
-    body =  "--" + boundary + nl + meta + nl +
-            "--" + boundary + nl +
-            "Content-Type: " + type + nl + nl + body + nl +
-            "--" + boundary + "--";
+    body =  new Blob([
+            "--", boundary, nl, meta, nl,
+            "--", boundary, nl,
+            "Content-Type: ", type, nl,
+            // "Content-Transfer-Encoding: BASE64", nl,
+            nl, data, nl,
+            "--", boundary, "--"
+    ]);
 
-    console.log("multipart post body:", body.slice(0, 200));
+    console.log("multipart post body, head(c=256):",
+            await (await new Response(body.slice(0, 256))).text());
 
-    return fetch("https://www.googleapis.com/upload/drive/v3/files" +
-            "?uploadType=multipart", {
+    let res = await fetch("https://www.googleapis.com/" +
+            "upload/drive/v3/files?uploadType=multipart", {
         "method": "POST",
         "headers": {
             "Authorization": "Bearer " + gapi.auth.getToken().access_token,
             "Content-Type": "multipart/related; boundary=" + boundary,
-            "Content-Length": body.length
+            "Content-Length": body.size
         },
         "body": body,
-    }).then(res => res.json()
-    ).then(obj => {
-        console.log("file upload to app folder completed: res:", obj);
-        return obj;
     });
+    let obj = await res.json();
+    console.log("file upload to app folder completed: res:", obj);
+    return obj;
 }
 window.uploadToAppFolder = uploadToAppFolder;
 
-async function getFromAppFolderByID(id){
-    console.log("called on ID:", id);
-    var res = await fetch(
+async function fetchFromAppFolderByID(id){
+    console.log("fetchFromAppFolderByID(id = %s)", id);
+    let res =  await fetch(
         `https://www.googleapis.com/drive/v3/files/${id}?alt=media`, {
         "method": "GET",
         "headers": {
@@ -264,8 +267,10 @@ async function getFromAppFolderByID(id){
             "Accept": "text/plain,application/json;q=0.9,*/*;q=0.8",
         },
     });
-    return await res.blob();
+    return res;
 }
+window.fetchFromAppFolderByID = fetchFromAppFolderByID;
+
 async function getFromAppFolderByNames(names){
     let query = "";
     if(typeof names === "string"){
@@ -285,7 +290,7 @@ async function getFromAppFolderByNames(names){
     let out = {};
     
     for(const f of res.result.files){
-        out[f.name] = getFromAppFolderByID(f.id);
+        out[f.name] = fetchFromAppFolderByID(f.id).blob();
     }
     await Promise.all(Object.values(out));
     for(const [k, v] of Object.entries(out)){
@@ -298,37 +303,20 @@ window.getFromAppFolderByNames = getFromAppFolderByNames;
 function deleteFromAppFolderByID(id){
     return gapi.client.drive.files.delete({
         "fileId": id
-    }).then(res => console.log("deleted id:%s completed, res:", id, res),
+    }).then(
+        res => console.log("deleted id:%s completed, res:", id, res),
         e => console.log("delete failed:", e));
 }
 window.deleteFromAppFolderByID = deleteFromAppFolderByID;
 
-window.deleteFromAppFolder = function deleteFromAppFolder(name){
-    return gapi.client.drive.files.list({
-        "spaces": "appDataFolder",
-        "maxResults": 100,
-        "q": `name = '${name}'`,
-        "fields": "files/id",
-    }).then(res => new Promise((resolve, reject) => {
-        var files = res.result.files;
-        if(files.length){
-            resolve(files[0].id);
-        } else{
-            reject(`cannot find ${name} from AppFolder`);
-        }
-    })).then(id => gapi.client.drive.files.delete({
-        "fileId": id
-    })).then(res => console.log("deleted %s completed, res:", name, res),
-        e => console.log("delete failed:", e));
-};
-
-function getPasteInfoID(first=true){
-    return gapi.client.drive.files.list({
-        "spaces": "appDataFolder",
-        "maxResults": 100,
-        "q": "name = 'paste_info.json'"
-    }).then(res => new Promise(resolve => {
-        var files = res.result.files;
+async function getPasteInfoID(){
+    try{
+        let res = await gapi.client.drive.files.list({
+            "spaces": "appDataFolder",
+            "maxResults": 100,
+            "q": "name = 'paste_info.json'"
+        });
+        let files = res.result.files;
         if(files.length){
             if(files.length > 1){ // evil type cast
                 console.log("multiple paste_info.json found:");
@@ -336,39 +324,39 @@ function getPasteInfoID(first=true){
                         JSON.stringify(files, null, 4
                         ).replace(/\n/g, "\n    "));
             }
-            resolve(files[0].id);
-        } else if(first){
-            console.log("paste_info.json does not exists, creating");
-            uploadToAppFolder(JSON.stringify({
-                "length": 0,
-            }), "application/json", "paste_info.json"
-            ).then(obj => resolve(obj.id));
-            // ).then(() => getPasteInfoID(false)).then(resolve);
+            return files[0].id;
         } else{
-            console.error("FATAL: paste_info.json creation failed");
+            console.log("paste_info.json does not exists, creating");
+            res = await uploadToAppFolder(JSON.stringify({
+                "length": 0,
+            }), "application/json", "paste_info.json");
+            return res.id;
         }
-    }));
+    } catch(e){
+        console.error("FATAL: paste_info.json creation failed, e:", e);
+    }
 };
 
-function getPasteInfo(){
-    return getPasteInfoID().then(id => fetch(
+async function getPasteInfo(){
+    let id = await getPasteInfoID();
+    let res = await fetch(
         `https://www.googleapis.com/drive/v3/files/${id}?alt=media`, {
         "method": "GET",
         "headers": {
             "Authorization": "Bearer " + gapi.auth.getToken().access_token,
             "Accept": "text/plain,application/json;q=0.9,*/*;q=0.8",
         },
-    })).then(res => res.json(
-    )).then(obj => {
-        console.log("paste_info.json retrived:",
-                JSON.stringify(obj, null, 4));
-        return obj;
     });
+    let obj = await res.json();
+    console.log("paste_info.json retrived:",
+            JSON.stringify(obj, null, 4));
+    return obj;
 }
 window.getPasteInfo = getPasteInfo;
 
-function setPasteInfo(paste_info){
-    getPasteInfoID().then(id => fetch(
+async function setPasteInfo(paste_info){
+    let id = await getPasteInfoID();
+    let res = await fetch(
         "https://www.googleapis.com/upload/drive/v3/files/" +
                 id + "?uploadType=media", {
         "method": "PATCH",
@@ -377,22 +365,24 @@ function setPasteInfo(paste_info){
             "Content-Type": "application/json",
         },
         "body": JSON.stringify(paste_info)
-    })).then(res => res.json());
+    });
+    let obj = await res.json();
     /* return:
     uploaded file's id, kind, mimeType, name
     */
+   return obj;
 };
 
 async function addPasteItem(data, type, name){
     if(type.startsWith("text") && data.length < 500){
-        getPasteInfo().then(info => {
-            info[info.length] = {
-                "type": type,
-                "body": data
-            };
-            info.length += 1;
-            setPasteInfo(info);
-        });
+        let info = await getPasteInfo();
+        info[info.length] = {
+            "type": type,
+            "body": data
+        };
+        info.length += 1;
+        setPasteInfo(info);
+        return;
     } else{
         let info = await getPasteInfo();
         let path = [
@@ -410,6 +400,7 @@ async function addPasteItem(data, type, name){
         info.length += 1;
 
         setPasteInfo(info);
+        return info[info.length-1];
     }
 }
 window.addPasteItem = addPasteItem;
@@ -422,23 +413,47 @@ async function getPasteItem(index){
         return;
     }
     if(out.id){
-        out.blob = await getFromAppFolderByID(out.id);
+        out.blob = await fetchFromAppFolderByID(out.id).blob();
     }
-    return blob;
+    return out;
 }
 window.getPasteItem = getPasteItem;
 
 async function getPasteItems(){
     let info = await getPasteInfo();
-    let indices = new Array(info.length).filter((e, i) => info[i].id);
-    let blobs = indices.map(v => getFromAppFolderByID(v));
-    await Promise.all(blobs);
-    indices.forEach(async (v, i) => {
-        info[v].blob = await blobs[i];
-    });
+    let ids = [...Array(info.length).keys()].map(i => info[i].id);
+    let responses = await Promise.all(ids.map(v => fetchFromAppFolderByID(v)));
+    let blobs = await Promise.all(responses.map(v => v.blob()));
+    blobs.forEach((v, i) => { info[i].blob = v; });
     return info;
 }
 window.getPasteItems = getPasteItems;
+
+async function removePasteItemByID(id){
+    deleteFromAppFolderByID(id);
+    let info = await getPasteInfo();
+
+    let delete_index = -1;
+    for(let [i, v] of Object.entries(info)){
+        if(v.id === id){
+            delete_index = i;
+            break;
+        }
+    }
+
+    if(delete_index >= 0){
+        for(let i = delete_index; i+1 < info.length; ++i){
+            info[i] = info[i+1];
+        }
+        delete info[info.length];
+        info.length -= 1;
+        setPasteInfo(info);
+    } else{
+        console.error("FATAL: removePasteItemByID():",
+                "invalid clip item delete index");
+    }
+}
+window.removePasteItemByID = removePasteItemByID;
 
 console.log("%cgoogle_api_library.js: loaded successfully", "color: #0f0");
 
