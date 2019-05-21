@@ -115,16 +115,42 @@ Object.defineProperty(window, "MONTH_SHORT", {
     enumerable: false,
     writable: false,
 });
-window.date_string = function date_string(){
-    let d = new Date();
-    return "" + d.getDate() + MONTH_SHORT[d.getMonth()] + d.getFullYear();
+window.datestr = function datestr(d, s=""){
+    if(!d) d = new Date();
+    return [
+        d.getDate(), MONTH_SHORT[d.getMonth()], d.getFullYear()
+    ].join(s);
 };
-window.time_string = function time_string(){
-    let d = new Date();
+window.timestr = function timestr(d, s=""){
+    if(!d) d = new Date();
     return [
         d.getHours(), d.getMinutes(), d.getSeconds()
-    ].reduce((l, r) => l + ("00" + r).slice(-2), "");
+    ].reduce((l, r) => l + (l?s:"") + ("00" + r).slice(-2), "");
 }
+
+Object.defineProperty(Promise.prototype, "state", {
+    async get(){
+        const o = {};
+        try{
+            let out = await Promise.race([this, o]);
+            return out === o ? "pending" : "resolved";
+        } catch(e){
+            return "rejected";
+        }
+    }
+});
+
+
+window.sleep = (time=200) => new Promise(resolve => setTimeout(resolve, time));
+
+function Lock(){
+    let release;
+    let self = new Promise(resolve => release = resolve);
+    self.release = release;
+    return self;
+}
+window.Lock = Lock;
+
 })(window);
 
 /*

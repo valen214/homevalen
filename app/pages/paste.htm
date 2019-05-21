@@ -6,39 +6,64 @@
 <title>index.htm</title>
 <link rel="icon" type="image/x-icon" href="/favicon.ico" />
 <style>
-html, body, div, span, img, a, canvas, pre {
+html, body, div, span, img, a, canvas, pre, textarea, * {
     box-sizing: border-box;
+}
+textarea {
+    white-space: normal;
+}
+body {
+    height: 100vh;
+    width: 100vw;
+    margin: 0;
+    font-family: "Consolas", 'Courier New', Courier, monospace;
 }
 </style>
 
 
 <script type="text/javascript" src="/util.js"></script>
+<script type="text/javascript" src="https://apis.google.com/js/api.js"></script>
 <script type="text/javascript" src="/google_api_library.js"></script>
 
 
 </head>
 <body>
 <style>
-#login_button, #clear_clips, #file_label {
+#background {
+    position: fixed;
+    width: 100vw;
+    height: 100vh;
+    z-index: -99;
+    opacity: 0.5;
+}
+
+.button {
     border: 1px solid #aaa;
     border-radius: 2px;
-    width: 120px;
-    height: 70px;
+    user-select: none;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.5);
 
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    margin: 0;
-    user-select: none;
-    cursor: pointer;
 }
-#login_button:hover,
-#clear_clips:hover,
-#file_label:hover {
+.button:hover {
     /*
     transform: translateY(1px);
     */
-    background: #fafafa;
+    background: rgba(235, 235, 235, 0.5);
+}
+.button:active {
+    background: rgba(200, 200, 200, 0.5);
+}
+
+
+#login_button, #clear_clips, #file_label {
+    margin-right: 15px;
+    width: 120px;
+    height: 70px;
+    margin-right: 15px;
 }
 
 #clip_canvas {
@@ -53,50 +78,62 @@ html, body, div, span, img, a, canvas, pre {
     border: 1px solid #aaa;
     border-radius: 2px;
     width: 100%;
-    max-width: 100%;
-    min-height: 50px;
-    max-height: 256px;
+    height: 10vh;
 
     display: inline-flex;
+    flex-direction: row;
+    align-items: center;
 }
-.cilp_item > .rm,
-.clip_item > .cp {
-    height: 100%;
-    width: 160px;
-    border: 1px solid #aaa;
-    border-radius: 2px;
+
+.clip_item > .cp,
+.clip_item > .rm,
+.clip_item > .update,
+.clip_item > .dl {
+    height: 8vh;
+    flex: 0 0 8vh;
+    margin-right: 15px;
 }
 .clip_item > img {
-    width: 100%;
+    flex: 1 1 auto;
     max-height: 100%;
     object-fit: scale-down;
     object-position: left;
 }
+.clip_item > .text {
+    flex: 1 1 auto;
+    margin-right: 15px;
+    height: 8vh;
+    max-height: 8vh;
+}
 
 </style>
 
-
+<div id="background"></div>
 <input id="file_upload" type="file" accept="*/*" multiple="false"/>
 
-<span id="login_button">login</span
-><span id="file_label">select file</span
-><span id="clear_clips">clear clips</span
+<span id="login_button" class="button">login</span
+><span id="file_label" class="button">select file</span
+><span id="clear_clips" class="button">clear clips</span
 ><br />
 <h5>selected</h5>
-<canvas id="clip_canvas"></canvas><br />
+<textarea id="clip_area"></textarea><br />
 
 <script>
+const background = document.getElementById("background");
 const login_button = document.getElementById("login_button");
 const file_upload = document.getElementById("file_upload");
 const clear_clips = document.getElementById("clear_clips");
 const file_label = document.getElementById("file_label");
+const clip_area = document.getElementById("clip_area");
 
 
 login_button.addEventListener("click", e => {
-    if(GoogleAuth.isSignedIn.get()){
-        console.log("%cuser has signed in", "color:#22d");
-    } else{
-        GoogleAuth.signIn();
+    if(window.hasOwnProperty("signIn")){
+        if(typeof signIn === "function"){
+            signIn();
+        } else if(signIn){
+            console.log("%cuser has already signed in", "color:#22d");
+        }
     }
 });
 file_label.addEventListener("click", e => {
@@ -107,7 +144,6 @@ file_upload.addEventListener("change", async e => {
     const f = file_upload.files[0];
     if(!f) return;
     let buf = await f.readAs("buffer");
-    console.log("buffer:", buf);
     console.log('<input type="file"> received object File(' +
         `name=${f.name}, type=${f.type}, size=${f.size}), ` +
         `head(c=100)=${
@@ -121,10 +157,11 @@ clear_clips.addEventListener("click", async e => {
         deleteFromAppFolderByID(f.id);
         console.log("deleting:", f.id);
     })
+    location.reload(true);
 });
 
 
-window.addEventListener("paste", function onPaste(e){
+window.addEventListener("paste", async function onPaste(e){
     function printInfo(i, t, s){
         if(s.length > 60){
             s = s.slice(0, 60) + "...";
@@ -132,122 +169,170 @@ window.addEventListener("paste", function onPaste(e){
         console.log(`paste item #${i} <${t}>: ${s}`);
     }
 
-    var data = (e.clipboardData ||
+    var data = (e.clipboardData || window.clipboardData ||
             e.originalEvent && e.originalEvent.clipboardData);
     var items = data && data.items;
+
+    let text = data.getData("text");
+    if(text){
+        printInfo(-1, "string", text);
+        pasteClip(text, "text/plain");
+        return;
+    }
 
     if(!items || !items.length){
         console.warn("paste event triggered but no items received");
         return;
     }
 
+    console.log("data trasnsfer list:", items);
+
     for(const [i, item] of Array.prototype.entries.call(items)){
         if(item.kind === "string" && item.type.match(/^text/)){
-            new Promise(resolve => item.getAsString(resolve)
-            ).then(pasted_string => {
-                printInfo(i, "string", pasted_string);
-                pasteClip(pasted_string);
-            });
+            text = await new Promise(resolve => item.getAsString(resolve));
+            printInfo(i, "string", text);
         } else if(item.kind == "file"){
             var f = item.getAsFile();
-            f.readAs("buffer").then(buf => {
-                printInfo(i, "file<buffer>", buf);
-                pasteClip(buf, f.type, f.name);
-            });
+            let buf = await f.readAs("buffer");
+            printInfo(i, "file<buffer>", buf);
+            pasteClip(buf, f.type, f.name);
         }
     }
 });
 
 
-function showImage(data){
-    const cvs = document.getElementById("clip_canvas");
-    const ctx = cvs.getContext("2d");
-    const _URL = window.URL || window.webkitURL;
-    const url = _URL.createObjectURL(new Blob(
-            [new Uint8Array(data)], // { type: "text/plain" }
-    ));
-
-    const img = new Image();
-
-    new Promise((resolve, error) => {
-        img.addEventListener("load", resolve);
-        img.addEventListener("error", error);
-        img.src = url;
-    }).then(e => {
-        console.assert(this === window);
-        console.assert(e.target === img);
-
-        cvs.style.maxWidth = "100%";
-        cvs.style.height = "auto";
-        cvs.width = img.width;
-        cvs.height = img.height;
-
-        ctx.drawImage(img, 0, 0);
-    }).catch(e => {
-        console.error(e);
-        console.error("loadImage(): image loading failed; url:", url);
-    });
+async function showImageInClipArea(data){
+    if(!(data instanceof Blob)){
+        data = await new Response(data).blob();
+    }
+    clip_area.style.background =
+    `center / contain no-repeat url(${URL.createObjectURL(data)})`;
 }
-async function showClipItem({ type, name, location, body, id, blob }){
+
+async function addClipItem({
+        type, name, location, body, id=randomstring(16), blob
+}){
     const parent = document.body;
+    const mouseenter_listener = addClipItem.mel || (
+        addClipItem.mel = e => {
+            background.style.background =
+                `center / contain no-repeat url(${
+                    e.target.querySelector("img").src
+                })`;
+    });
+    const create_button = addClipItem.cb || (
+        addClipItem.cb = (classes, label, onclick) => {
+            let s = document.createElement("span");
+            s.className = classes;
+            s.innerText = label;
+            s.addEventListener("click", onclick);
+            return s;
+        }
+    );
+
+    if(!addClipItem.firstRun){
+        console.log("%cadded first clip item %s sec after page loaded",
+                "color: #22d", performance.now() / 1000);
+        addClipItem.firstRun = true;
+    }
 
     var elem = document.createElement("span");
     elem.classList.add("clip_item");
     elem.id = id;
 
-    var rm = document.createElement("span");
-    rm.className = "rm";
-    rm.innerText = "remove";
-    rm.addEventListener("click", e => {
+    var rm = create_button("rm button", "remove", e => {
         removePasteItemByID(id);
     });
-    elem.insertAdjacentElement("beforeend", rm);
 
-    var cp = document.createElement("span");
-    cp.className = "cp";
-    cp.innerText = "copy";
-    cp.addEventListener("click", e => {
+    var cp = create_button("cp button", "copy", e => {
 
     });
-    elem.insertAdjacentElement("beforeend", cp);
 
     if(type.match(/^image/)){
         let img = new Image();
         if(!blob) blob = await fetchFromAppFolderByID(id).blob();
         img.src = URL.createObjectURL(blob);
-        elem.insertAdjacentElement("afterbegin", img);
-        // showImage(await (await new Response(blob)).arrayBuffer());
+        elem.addEventListener("mouseenter", mouseenter_listener);
+
+        let dl = create_button("dl button", "download", e => {
+
+        });
+
+        elem.appendChild(img);
+        elem.appendChild(dl);
     } else if(type.match(/^text/)){
-        elem.insertAdjacentElement("afterbegin",
-                document.createTextNode(body));
+        let text = document.createElement("textarea");
+        text.className = "text";
+        text.innerText = body;
+
+        let update = create_button("update button", "update", e => {
+
+        });
+
+        elem.appendChild(text);
+        elem.appendChild(update);
     }
+
+    elem.appendChild(rm);
+    elem.appendChild(cp);
     parent.appendChild(elem);
 }
 
 async function pasteClip(data, type, name){
     if(type.match(/^image/)){
-        showImage(data);
-        let item = await addPasteItem(data, type, name);
-        if(item){
-            item.blob = await fetchFromAppFolderByID(item.id).blob();
-            showClipItem(item);
-        } else{
-            console.error("FATAL: pasteClip() not receiving item");
+        let blob = await new Response(data).blob();
+        showImageInClipArea(blob);
+        let item = addPasteItem(data, type, name);
+        item = await item;
+        item.blob = blob;
+        addClipItem(item);
+    } else if(type.match(/^text/)){
+        if(typeof data !== "string"){
+            console.error("pasteClip(): pasted text but not passing string");
+            return;
         }
-    } else{
-
+        addClipItem({
+            type: type,
+            body: data,
+        });
+        addPasteItem(data, type, name);
     }
 }
 
 (async () => {
-    while(!window.hasOwnProperty("gapi"))
-        await new Promise(resolve => setTimeout(resolve, 1000));
+    login_button.innerText = "login";
+    while(!access_token ||
+        await access_token.state === "pending"
+    ) await sleep(200);
+    console.log("access token resolved:", await access_token);
+    console.log("%ccontinue main thread jobs", "color: #2f2;");
+    login_button.innerText = "logout";
 
-    let info = await getPasteItems();
-    [...Array(info.length).keys()].forEach(i => {
-        let item = info[i];
-        showClipItem(item);
-    });
+    let first = true;
+    while(true){
+        let info = await getPasteInfo();
+        let list = [...document.querySelectorAll(".clip_item")].map(e => e.id);
+        [...Array(info.length).keys()].forEach(async i => {
+            let item = info[i];
+            let index = list.indexOf(item.id);
+            if(index >= 0){
+                list.splice(index, 1);
+            } else{
+                if(item.location) // non plain text
+                    item.blob = await(
+                        await fetchFromAppFolderByID(item.id)).blob();
+                addClipItem(item);
+            }
+        });
+        list.forEach(id => {
+            let elem = document.getElementById(id);
+            elem.parentElement.removeChild(elem);
+        });
+        if(first && !(first = false))
+            console.log("%cfinished first initialization, took %s sec",
+                    "color: #22d", performance.now() / 1000);
+        await sleep(200);
+    }
 })();
 
 function func1(){
@@ -261,6 +346,12 @@ function func1(){
             console.log(`ended task #${i}`);
         });
         console.log("after code block");
+    })();
+}
+
+function func2(){
+    (async () => {
+        let a = await new Promise(resolve => Promise.resolve(resolve));
     })();
 }
 

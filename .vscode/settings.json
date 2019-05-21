@@ -33,11 +33,11 @@
         "types": "#8b8bff",
         "keywords": "#5a5bff",
     */
-        "variables": "#ff99b4",
+        "variables": "#ffa9b4",
         "strings": "#87cee8",
         "functions": "#ddd",
         "keywords": "#6565ff",
-        "types": "#9acd32",
+        "types": "#9add32",
     },
     "workbench.editor.tabCloseButton": "off",
     "workbench.settings.editor": "json",
@@ -48,6 +48,12 @@
     "eslint.options": {
         "configFile": "E:/workspace/node_modules/.bin/.eslintrc.json",
     },
+    "eslint.validate":[
+        "javascript",
+        "javascriptreact",
+        "html",
+        "htm",
+    ],
 
     "window.menuBarVisibility": "default",
     

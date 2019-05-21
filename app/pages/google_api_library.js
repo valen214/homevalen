@@ -1,7 +1,7 @@
 
 /* global gapi:false, GoogleAuth:false */
 
-(function(window, undefined){
+(async function(window, undefined){
 
 /*
 about GoogleAuth and gapi:
@@ -9,47 +9,163 @@ https://developers.google.com/api-client-library/javascript/
 reference/referencedocs#googleauthcurrentuserget
 
 */
+const API_KEY = "AIzaSyCp8Rwg-WfaxkOz5MfdOGaXJI9R2ZXb5GM";
+const CLIENT_ID = "948862535396-niamq8hq8ta57649seimp4olv9ktlii9" +
+                ".apps.googleusercontent.com";
 
-new Promise(resolve => {
-    var s = document.createElement("script");
-    s.addEventListener("load", resolve);
-    s.src = "https://apis.google.com/js/api.js";
-    document.head.appendChild(s);
-}).then(() => new Promise(resolve => gapi.load("client:auth2", resolve)
-)).then(() => gapi.client.init({
-    "apiKey": "AIzaSyCp8Rwg-WfaxkOz5MfdOGaXJI9R2ZXb5GM",
-    "clientId": "948862535396-niamq8hq8ta57649seimp4olv9ktlii9" +
-                ".apps.googleusercontent.com",
-    "scope": [
+async function uninitializedAccessToken(){
+    let token = localStorage.getItem("gapi_access_token");
+    let expires_at = parseInt(localStorage.getItem("gapi_expires_at"));
+
+    console.log("cached access token:", token);
+    console.log("expires_at - Date.now():", expires_at - Date.now());
+    let d = new Date(expires_at);
+    console.log(`expires_at: ${datestr(d, ' ')} ${timestr(d, ':')}`);
+    if((expires_at < Date.now()) || !token){
+        console.log("invalid cahce");
+        return regularLogin();
+    }
+    let res = await fetch("https://www.googleapis.com/" +
+        "oauth2/v1/tokeninfo?access_token=" + token);
+    if(res.status !== 200){
+        console.group();
+        console.error("token validation failed", res);
+        console.error("body:", await res.json());
+        console.groupEnd();
+        return regularLogin();
+    }
+
+    let obj = await res.json();
+    // console.log(obj);
+    if(obj.issued_to !== CLIENT_ID || "error" in obj){
+        console.error("erroneous/invalid validation response");
+        return regularLogin();
+    }
+    if(typeof obj.expires_in !== "number" && obj.expires_in <= 60){
+        console.error("unusable token");
+        return regularLogin();
+    }
+    console.log("%cusing cached access token", "color: #2f2");
+    window.signIn = true;
+    window.signOut = signOut; // hoisted above access_token
+
+    return token;
+}
+
+var GoogleAuth;
+var access_token = uninitializedAccessToken();
+Object.defineProperty(window, "access_token", {
+    get(){
+        return access_token;
+    },
+    set(){ throw new Error("cannot assign access_token"); }
+});
+initGAPI();
+
+
+function signOut(){
+    localStorage.removeItem("gapi_access_token");
+    localStorage.removeItem("gapi_expires_at");
+
+    if(GoogleAuth){
+        GoogleAuth.disconnect();
+    }
+}
+
+async function initGAPI(){
+    /*
+    race the mtfk, most discovery function is the first function called,
+    would exit immediately if not defined yet.
+    */
+    if(initGAPI.initialized || !(initGAPI.initialized = true)) return;
+
+    if(!window.hasOwnProperty("gapi")){
+        console.log("gapi script not imported, consider put it in <head>");
+        await new Promise(resolve => {
+            var s = document.createElement("script");
+            s.addEventListener("load", resolve);
+            s.src = "https://apis.google.com/js/api.js";
+            document.head.appendChild(s);
+        });
+    }
+    await new Promise(resolve => gapi.load("client:auth2", resolve));
+    await gapi.client.init({
+        "apiKey": API_KEY,
+        "clientId": CLIENT_ID,
+        "scope": [
             "https://www.googleapis.com/auth/photoslibrary.sharing",
             // "https://www.googleapis.com/auth/photoslibrary",
             "https://www.googleapis.com/auth/drive.appfolder",
             // "https://www.googleapis.com/auth/drive",
             // "https://www.googleapis.com/auth/drive.photos.readonly",
         ].join(" "),
-    "discoveryDocs": [
-        "https://www.googleapis.com/discovery/v1/apis/drive/v3/rest",
-        "https://photoslibrary.googleapis.com/$discovery/rest?version=v1"
-    ]
-})).then(() => {
-    window.GoogleAuth = gapi.auth2.getAuthInstance();
+        "discoveryDocs": [
+            "https://www.googleapis.com/discovery/v1/apis/drive/v3/rest",
+            "https://photoslibrary.googleapis.com/$discovery/rest?version=v1"
+        ]
+    });
+    
+    console.log("%cfinished gapi initialization, took %s sec",
+            "color: #22d", performance.now() / 1000);
+}
+
+async function regularLogin(){
+    localStorage.removeItem("gapi_access_token");
+    localStorage.removeItem("gapi_expires_at");
+
+    await initGAPI();
+
+    function userSigninStatus(status){
+        let out = GoogleAuth.isSignedIn.get();
+        console.log(`%cuserSigninStatus(status=${status}): ${out}`,
+                out ? "color:#2f2" : "color:#d22");
+        return out;
+    }
+    window.userSigninStatus = userSigninStatus;
+
+    GoogleAuth = gapi.auth2.getAuthInstance();
     GoogleAuth.isSignedIn.listen(userSigninStatus);
 
+    if(!GoogleAuth.isSignedIn.get()){
+        console.log("not signed in, adding global signIn() function");
+        await new Promise(resolve => {
+            GoogleAuth.isSignedIn.listen(status => {
+                if(status){
+                    console.log("signed in");
+                    resolve();
+                }
+            });
+            window.signIn = () => {
+                GoogleAuth.signIn();
+            };
+        });
+    }
+
     const user = GoogleAuth.currentUser.get();
+    let auth_res = user.getAuthResponse();
     // const isAuthed = user.hasGrantedScopes(scope);
     const scopes = user.getGrantedScopes();
     if(scopes){
         console.log("%cuser granted scope:", "color:#22d",
                 JSON.stringify(scopes.split(" "), null, 4));
-        console.log("%caccess token:", "color:#22d",
-                user.getAuthResponse().access_token);
+        console.log("%caccess token:", "color:#22d", auth_res.access_token);
+        console.log("%cexpires at:", "color:#22d", auth_res.expires_at);
+        console.log("%cnow: %d, diff: %d", "color:#22d", Date.now(),
+                auth_res.expires_at - Date.now(), auth_res.expires_in)
     }
 
-    if(!userSigninStatus()){
-        GoogleAuth.signIn();
-        userSigninStatus();
-    }
-});
+
+    // gapi.auth.getToken().access_token
+    localStorage.setItem("gapi_access_token", auth_res.access_token);
+    localStorage.setItem("gapi_expires_at", auth_res.expires_at);
+    console.log("regular login finished: token:", auth_res.access_token);
+    window.signIn = true;
+    window.signOut = signOut;
+
+    return auth_res.access_token;
+}
+
+
 
 function grantScope(scope){
     const user = GoogleAuth.currentUser.get();
@@ -58,12 +174,6 @@ function grantScope(scope){
     });
 }
 
-window.userSigninStatus = function userSigninStatus(status){
-    let out = GoogleAuth.isSignedIn.get();
-    console.log(`%cuserSigninStatus(status=${status}): ${out}`,
-            out ? "color:#2f2" : "color:#d22");
-    return out;
-}
 
 window.getAlbumByName = function getAlbumByName(name, nextPageToken=null){
     return gapi.client.photoslibrary.albums.list(
@@ -132,16 +242,16 @@ uploadGoogleImage("a.png", Uint8Array.from(atob(
 */
 
 // https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch
-window.uploadGoogleImage = function uploadGoogleImage(filename, data){
+window.uploadGoogleImage = async function uploadGoogleImage(filename, data){
     var album;
     getOrCreateAlbumByName("homevalen.com album one" // ).then(shareAlbum
     ).then(al => (album = al)
-    ).then(() => fetch(
+    ).then(async () => fetch(
         "https://photoslibrary.googleapis.com/v1/uploads", {
         "method": "POST",
         "headers": {
             "Content-Type": "application/octet-stream",
-            "Authorization": "Bearer " + gapi.auth.getToken().access_token,
+            "Authorization": "Bearer " + await access_token,
             "X-Goog-Upload-File-Name": filename,
             "X-Goog-Upload-Protocol": "raw",
         },
@@ -190,7 +300,7 @@ function listAppFolder(){
         "spaces": "appDataFolder",
         "maxResults": 100,
         "fields": "incompleteSearch, nextPageToken, " +
-                "files(id, name, originalFilename)",
+                "files(id, name)",
     }).then(res => {
         const obj = res.result;
         console.log(obj);
@@ -209,16 +319,13 @@ async function uploadToAppFolder(data, type, name){
     }
     */
 
-    console.log(`uploadToAppFolder(data=${
-            new Uint8Array(data.slice(0, 256))}`);
-    
     const nl = "\r\n";
     let meta = "Content-Type: application/json; charset=UTF-8" + nl + nl +
         JSON.stringify({
             "name": name,
             "parents": ["appDataFolder"],
         });
-    let body = await (await new Response(data)).text();
+    let body = await new Response(data).text();
 
     let boundary = randomstring(16);
     while(meta.includes(boundary) || body.includes(boundary)){
@@ -238,14 +345,11 @@ async function uploadToAppFolder(data, type, name){
             "--", boundary, "--"
     ]);
 
-    console.log("multipart post body, head(c=256):",
-            await (await new Response(body.slice(0, 256))).text());
-
     let res = await fetch("https://www.googleapis.com/" +
             "upload/drive/v3/files?uploadType=multipart", {
         "method": "POST",
         "headers": {
-            "Authorization": "Bearer " + gapi.auth.getToken().access_token,
+            "Authorization": "Bearer " + await access_token,
             "Content-Type": "multipart/related; boundary=" + boundary,
             "Content-Length": body.size
         },
@@ -263,7 +367,7 @@ async function fetchFromAppFolderByID(id){
         `https://www.googleapis.com/drive/v3/files/${id}?alt=media`, {
         "method": "GET",
         "headers": {
-            "Authorization": "Bearer " + gapi.auth.getToken().access_token,
+            "Authorization": "Bearer " + await access_token,
             "Accept": "text/plain,application/json;q=0.9,*/*;q=0.8",
         },
     });
@@ -310,13 +414,22 @@ function deleteFromAppFolderByID(id){
 window.deleteFromAppFolderByID = deleteFromAppFolderByID;
 
 async function getPasteInfoID(){
+// https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams
     try{
-        let res = await gapi.client.drive.files.list({
-            "spaces": "appDataFolder",
-            "maxResults": 100,
-            "q": "name = 'paste_info.json'"
+        let res = await fetch(
+            "https://www.googleapis.com/drive/v3/files" +
+            "?pageSize=100" +
+            "&q=name%20%3D%20%27paste_info.json%27" +
+            "&spaces=appDataFolder" +
+            "&fields=files%2Fid" +
+            "&key=" + API_KEY, {
+            "method": "GET",
+            "headers": {
+                "Authorization": "Bearer " + await access_token,
+                "Accept": "application/json",
+            }
         });
-        let files = res.result.files;
+        let files = (await res.json()).files;
         if(files.length){
             if(files.length > 1){ // evil type cast
                 console.log("multiple paste_info.json found:");
@@ -343,17 +456,22 @@ async function getPasteInfo(){
         `https://www.googleapis.com/drive/v3/files/${id}?alt=media`, {
         "method": "GET",
         "headers": {
-            "Authorization": "Bearer " + gapi.auth.getToken().access_token,
+            "Authorization": "Bearer " + await access_token,
             "Accept": "text/plain,application/json;q=0.9,*/*;q=0.8",
         },
     });
     let obj = await res.json();
-    console.log("paste_info.json retrived:",
-            JSON.stringify(obj, null, 4));
+    
+    let str = JSON.stringify(obj, null, 4);
+    if(str != getPasteInfo.last_info){
+        getPasteInfo.last_info = str;
+        console.log("paste_info.json changed:", str);
+    }
     return obj;
 }
 window.getPasteInfo = getPasteInfo;
 
+// @ts-check
 async function setPasteInfo(paste_info){
     let id = await getPasteInfoID();
     let res = await fetch(
@@ -361,7 +479,7 @@ async function setPasteInfo(paste_info){
                 id + "?uploadType=media", {
         "method": "PATCH",
         "headers": {
-            "Authorization": "Bearer " + gapi.auth.getToken().access_token,
+            "Authorization": "Bearer " + await access_token,
             "Content-Type": "application/json",
         },
         "body": JSON.stringify(paste_info)
@@ -374,20 +492,29 @@ async function setPasteInfo(paste_info){
 };
 
 async function addPasteItem(data, type, name){
+    let last_lock = addPasteItem.lock;
+    let mylock = Lock();
+    addPasteItem.lock = mylock;
+    await last_lock;
+
+    let out;
     if(type.startsWith("text") && data.length < 500){
         let info = await getPasteInfo();
         info[info.length] = {
             "type": type,
-            "body": data
+            "body": data,
+            "id": [
+                "text", Date.now(), info.length, randomstring(5),
+                datestr(), timestr()
+            ].join("_"),
         };
         info.length += 1;
         setPasteInfo(info);
-        return;
     } else{
         let info = await getPasteInfo();
         let path = [
             Date.now(), info.length, randomstring(5),
-            date_string(), time_string(), name
+            datestr(), timestr(), name
         ].join("_");
         let res = await uploadToAppFolder(data, type, path);
 
@@ -400,8 +527,11 @@ async function addPasteItem(data, type, name){
         info.length += 1;
 
         setPasteInfo(info);
-        return info[info.length-1];
+        out = Object.create(info[info.length-1]);
     }
+
+    mylock.release();
+    return out;
 }
 window.addPasteItem = addPasteItem;
 
@@ -422,7 +552,13 @@ window.getPasteItem = getPasteItem;
 async function getPasteItems(){
     let info = await getPasteInfo();
     let ids = [...Array(info.length).keys()].map(i => info[i].id);
-    let responses = await Promise.all(ids.map(v => fetchFromAppFolderByID(v)));
+    let responses = await Promise.all(ids.map((v, i) => {
+        if(v){
+            return fetchFromAppFolderByID(v)
+        } else if(info[i].type.match(/^text/)){
+            return new Response(info[i].body);
+        }
+    }));
     let blobs = await Promise.all(responses.map(v => v.blob()));
     blobs.forEach((v, i) => { info[i].blob = v; });
     return info;
@@ -447,6 +583,9 @@ async function removePasteItemByID(id){
         }
         delete info[info.length];
         info.length -= 1;
+
+        console.log(`deleted item at #${id}, info: ${info}`);
+
         setPasteInfo(info);
     } else{
         console.error("FATAL: removePasteItemByID():",
@@ -456,7 +595,5 @@ async function removePasteItemByID(id){
 window.removePasteItemByID = removePasteItemByID;
 
 console.log("%cgoogle_api_library.js: loaded successfully", "color: #0f0");
-
-// 
 
 })(window);
