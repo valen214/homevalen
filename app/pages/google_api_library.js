@@ -41,10 +41,15 @@ async function uninitializedAccessToken(){
         console.error("erroneous/invalid validation response");
         return regularLogin();
     }
-    if(typeof obj.expires_in !== "number" && obj.expires_in <= 60){
+    if(typeof obj.expires_in !== "number" && obj.expires_in <= 60000){
         console.error("unusable token");
         return regularLogin();
     }
+
+    setTimeout(() => {
+        access_token.then(() => uninitializedAccessToken);
+    }, obj.expires_in - 10000);
+
     console.log("%cusing cached access token", "color: #2f2");
     window.signIn = true;
     window.signOut = signOut; // hoisted above access_token
@@ -312,7 +317,7 @@ window.listAppFolder = listAppFolder;
 
 // application/vnd.google-apps.folder
 
-async function uploadToAppFolder(data, type, name){
+async function uploadToAppFolder(type, data, name){
     /*
     if(ArrayBuffer.isView(data) || data instanceof ArrayBuffer){
         data = await new Response(data).blob();
@@ -325,10 +330,10 @@ async function uploadToAppFolder(data, type, name){
             "name": name,
             "parents": ["appDataFolder"],
         });
-    let body = await new Response(data).text();
+    let body_text = await new Response(data).text();
 
     let boundary = randomstring(16);
-    while(meta.includes(boundary) || body.includes(boundary)){
+    while(meta.includes(boundary) || body_text.includes(boundary)){
         boundary = randomstring(boundary.length + 16);
         if(boundary.length > 256){
             console.error("something's probably wrong",
@@ -336,7 +341,7 @@ async function uploadToAppFolder(data, type, name){
         }
     }
 
-    body =  new Blob([
+    let body = new Blob([
             "--", boundary, nl, meta, nl,
             "--", boundary, nl,
             "Content-Type: ", type, nl,
@@ -363,7 +368,7 @@ window.uploadToAppFolder = uploadToAppFolder;
 
 async function fetchFromAppFolderByID(id){
     console.log("fetchFromAppFolderByID(id = %s)", id);
-    let res =  await fetch(
+    let res = await fetch(
         `https://www.googleapis.com/drive/v3/files/${id}?alt=media`, {
         "method": "GET",
         "headers": {
@@ -413,127 +418,6 @@ function deleteFromAppFolderByID(id){
 }
 window.deleteFromAppFolderByID = deleteFromAppFolderByID;
 
-async function getPasteInfoID(){
-// https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams
-    try{
-        let res = await fetch(
-            "https://www.googleapis.com/drive/v3/files" +
-            "?pageSize=100" +
-            "&q=name%20%3D%20%27paste_info.json%27" +
-            "&spaces=appDataFolder" +
-            "&fields=files%2Fid" +
-            "&key=" + API_KEY, {
-            "method": "GET",
-            "headers": {
-                "Authorization": "Bearer " + await access_token,
-                "Accept": "application/json",
-            }
-        });
-        let files = (await res.json()).files;
-        if(files.length){
-            if(files.length > 1){ // evil type cast
-                console.log("multiple paste_info.json found:");
-                console.log("    res.result.files:",
-                        JSON.stringify(files, null, 4
-                        ).replace(/\n/g, "\n    "));
-            }
-            return files[0].id;
-        } else{
-            console.log("paste_info.json does not exists, creating");
-            res = await uploadToAppFolder(JSON.stringify({
-                "length": 0,
-            }), "application/json", "paste_info.json");
-            return res.id;
-        }
-    } catch(e){
-        console.error("FATAL: paste_info.json creation failed, e:", e);
-    }
-};
-
-async function getPasteInfo(){
-    let id = await getPasteInfoID();
-    let res = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${id}?alt=media`, {
-        "method": "GET",
-        "headers": {
-            "Authorization": "Bearer " + await access_token,
-            "Accept": "text/plain,application/json;q=0.9,*/*;q=0.8",
-        },
-    });
-    let obj = await res.json();
-    
-    let str = JSON.stringify(obj, null, 4);
-    if(str != getPasteInfo.last_info){
-        getPasteInfo.last_info = str;
-        console.log("paste_info.json changed:", str);
-    }
-    return obj;
-}
-window.getPasteInfo = getPasteInfo;
-
-// @ts-check
-async function setPasteInfo(paste_info){
-    let id = await getPasteInfoID();
-    let res = await fetch(
-        "https://www.googleapis.com/upload/drive/v3/files/" +
-                id + "?uploadType=media", {
-        "method": "PATCH",
-        "headers": {
-            "Authorization": "Bearer " + await access_token,
-            "Content-Type": "application/json",
-        },
-        "body": JSON.stringify(paste_info)
-    });
-    let obj = await res.json();
-    /* return:
-    uploaded file's id, kind, mimeType, name
-    */
-   return obj;
-};
-
-async function addPasteItem(data, type, name){
-    let last_lock = addPasteItem.lock;
-    let mylock = Lock();
-    addPasteItem.lock = mylock;
-    await last_lock;
-
-    let out;
-    if(type.startsWith("text") && data.length < 500){
-        let info = await getPasteInfo();
-        info[info.length] = {
-            "type": type,
-            "body": data,
-            "id": [
-                "text", Date.now(), info.length, randomstring(5),
-                datestr(), timestr()
-            ].join("_"),
-        };
-        info.length += 1;
-        setPasteInfo(info);
-    } else{
-        let info = await getPasteInfo();
-        let path = [
-            Date.now(), info.length, randomstring(5),
-            datestr(), timestr(), name
-        ].join("_");
-        let res = await uploadToAppFolder(data, type, path);
-
-        info[info.length] = {
-            "type": type,
-            "name": name,
-            "location": path,
-            "id": res.id,
-        };
-        info.length += 1;
-
-        setPasteInfo(info);
-        out = Object.create(info[info.length-1]);
-    }
-
-    mylock.release();
-    return out;
-}
-window.addPasteItem = addPasteItem;
 
 async function getPasteItem(index){
     let info = await getPasteInfo();
@@ -595,5 +479,279 @@ async function removePasteItemByID(id){
 window.removePasteItemByID = removePasteItemByID;
 
 console.log("%cgoogle_api_library.js: loaded successfully", "color: #0f0");
+
+const PasteInfo = (self => {
+    Object.defineProperties(self, {
+        change_listeners: { value: [] },
+        add_listeners: { value: [] },
+        remove_listeners: { value: [] },
+        id: { writable: true },
+        blob_promises: { value: {} },
+        listening: { value: true, writable: true },
+        json: { get(){ return JSON.stringify(self, null, 4); } },
+    });
+
+
+
+    self.order = [];
+    return self;
+})({
+    async startListening(interval=200){
+        console.log("%cPasteInfo starts listening @ %s",
+                "color: #22d", performance.now() / 1000);
+        if(interval < 20){
+            console.warn("download frequency probably too fast?");
+        }
+        while(this.listening){
+            await this.downloadInfo();
+            await sleep(interval);
+        }
+    },
+    stopListening(){
+        console.log("%cPasteInfo stop listening @ %s",
+                "color: #d22", performance.now() / 1000);
+        this.listening = false;
+        return this;
+    },
+
+    async refresh_id(){
+        let res = await fetch(
+            "https://www.googleapis.com/drive/v3/files" +
+            "?pageSize=100" +
+            "&q=name%20%3D%20%27paste_info.json%27" +
+            "&spaces=appDataFolder" +
+            "&fields=files%2Fid" +
+            "&key=" + API_KEY, {
+            "method": "GET",
+            "headers": {
+                "Authorization": "Bearer " + await access_token,
+                "Accept": "application/json",
+            }
+        });
+        let files = (await res.json()).files;
+        if(res.ok && files.length){
+            if(files.length > 1){ // evil type cast
+                console.log("multiple paste_info.json found:");
+                console.log("    res.result.files:", JSON.stringify(
+                        files, null, 4).replace(/\n/g, "\n    "));
+            }
+            this.id = files[0].id;
+        } else{
+            console.log("paste_info.json does not exists, creating");
+            res = await uploadToAppFolder(
+                    "application/json",
+                    JSON.stringify({
+                        "order": [],
+                    }), "paste_info.json");
+            this.id = res.id;
+        }
+
+        if(!this.id){
+            throw new Error('failed retrieving "paste_info.json" id');
+        }
+    },
+
+    async downloadInfo(attempts=0){
+        if(!this.id) await this.refresh_id();
+        let res = await fetch(
+            `https://www.googleapis.com/drive/v3/files/${this.id}?alt=media`, {
+            "method": "GET",
+            "headers": {
+                "Authorization": "Bearer " + await access_token,
+                "Accept": "text/plain,application/json;q=0.9,*/*;q=0.8",
+            },
+        });
+        
+        if(!res.ok){
+            if(attempts < 4){
+                await sleep(50);
+                await this.refresh_id();
+                return this.downloadInfo(attempts+1);
+            }
+            throw new Error('error downloading "paste_info.json"');
+        }
+
+        let obj = await res.json();
+        if(!Object.value_equals(this.order, obj.order)){
+            console.log(`info changed: ${
+                JSON.stringify(this, null, 4)} => ${
+                JSON.stringify(obj, null, 4)}`);
+
+            let l1 = [...this.order];
+            let l2 = [...obj.order];
+            let pending = [];
+
+            for(let id of l1){
+                let i = l2.indexOf(id);
+                if(i >= 0){
+                    l2.splice(i, 1);
+                } else{
+                    let p = this.remove(id);
+                    pending.push(p);
+                }
+            }
+            await Promise.all(pending);
+            pending.length = 0;
+
+            for(let id of l2){
+                console.assert(!l1.includes(id));
+                let {type, name, location} = obj[id];
+                l1.push(id);
+                let p = this.add(type, null, name, location, id, false);
+                pending.push(p);
+            }
+            await Promise.all(pending);
+            pending.length = 0;
+
+            if(!Object.value_equals(l1, this.order)){
+                console.log("CHANGE LIST");
+                this.change(l1);
+            }
+        }
+
+        for(let id of this.order){
+            if(!Object.value_equals(obj[id], this[id])){
+                console.log(obj[id], this[id]);
+                console.log("ITEM CONTENT CHANGE");
+                this.change(id, obj[id]);
+            }
+        }
+        return this;
+    },
+
+    async uploadInfo(first=true){
+        if(!this.id) await this.refresh_id();
+        let res = await fetch(
+            "https://www.googleapis.com/upload/drive/v3/files/" +
+                    this.id + "?uploadType=media", {
+            "method": "PATCH",
+            "headers": {
+                "Authorization": "Bearer " + await access_token,
+                "Content-Type": "application/json",
+            },
+            "body": JSON.stringify(this)
+        });
+
+        if(res.ok){
+            return res.json();
+        } else if(first){
+            await sleep(50);
+            await this.refresh_id();
+            return this.uploadInfo(false);
+        } else{
+            throw new Error('failed to upload to "paste_info.json"');
+        }
+    },
+
+    async getBlob(id){
+        if(id in this.blob_promises)
+            return this.blob_promises[id];
+        throw new Error(`PasteInfo.getBlob(): blob at id=${id} not found`);
+    },
+    getText(id){
+        if(id in this && this[id].data != null){
+            return this[id].data;
+        }
+        throw new Error("PasteInfo.getText():");
+    },
+
+    on(event, listener){
+        if(typeof listener !== "function"){
+            throw new Error("invalid listener");
+        }
+        switch(event){
+        case "change": this.change_listeners.push(listener); break;
+        case "add": this.add_listeners.push(listener); break;
+        case "remove": this.remove_listeners.push(listener); break;
+        default: throw new Error("unsupported event:", event);
+        }
+        return this;
+    },
+
+    async add(type, data, name, location, id, local=true){
+        if(type.match(/^image/)){
+            this.stopListening();
+            if(local){
+                if(id){
+                    console.error("FATAL");
+                }
+                location = [
+                    Date.now(), randomstring(5),
+                    datestr(), timestr(), name
+                ].join("_");
+                let obj = await uploadToAppFolder(type, data, location);
+                id = obj.id;
+            }
+
+            this.order.push(id);
+            this[id] = {
+                "type": type,
+                "name": name,
+                "location": location,
+            };
+            
+            if(local){
+                await this.uploadInfo();
+            } else{
+                this.blob_promises[id] =
+                        fetchFromAppFolderByID(id).then(res => res.blob());
+                this.dispatch("add", id);
+            }
+
+            this.startListening();
+            return this[id];
+        } else if(type.match(/^text/)){
+            this.stopListening();
+
+            if(local){
+                location = [
+                    Date.now(), randomstring(5),
+                    datestr(), timestr(), name
+                ].join("_");
+            }
+
+            this.order.push(id);
+            this[id] = {
+                "type": type,
+                "name": name,
+                "location": location,
+            };
+
+        } else{
+
+        }
+    },
+
+    async remove(id){
+        this.dispatch("remove", id);
+
+    },
+
+    async change(list_or_id, arg){
+        if(typeof list_or_id === "string"){
+            if(!this.hasOwnProperty(list_or_id)){
+                throw new Error("value changed on non-existing property");
+            }
+            this[list_or_id] = arg;
+            this.dispatch("change", list_or_id);
+        } else{
+            this.order = list_or_id;
+            this.dispatch("change", list_or_id);
+        }
+    },
+
+    dispatch(event, ...args){
+        let list;
+        switch(event){
+        case "add": list = this.add_listeners; break;
+        case "remove": list = this.remove_listeners; break;
+        case "change": list = this.change_listeners; break;
+        }
+        for(let f of list){
+            try{ f(...args); } catch(e){ console.error(e) }
+        }
+    }
+});
+window.PasteInfo = PasteInfo;
 
 })(window);

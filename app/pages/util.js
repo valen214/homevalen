@@ -151,6 +151,31 @@ function Lock(){
 }
 window.Lock = Lock;
 
+window.isPrimitive = function isPrimitive(o){ return Object(o) !== o; }
+
+Object.value_equals = function value_equals(x, y){
+    if(x === y) return true;
+    if(!x || !y) return false;
+
+    let remain = Object.keys(y);
+    for(let [k, xv] of Object.entries(x)){
+        let yv = y[k];
+        let i = remain.indexOf(k);
+        if(i < 0) return false;
+        remain.splice(i, 1);
+        if(xv === yv) continue;
+        if(!Object.value_equals(xv, yv)) return false;
+    }
+    if(remain.length) return false;
+    return true;
+};
+
+window.isIterable = function isIterable(obj){
+    return obj != null &&
+            typeof obj[Symbol.iterator] === "function" ||
+            typeof obj[Symbol.asyncIterator] === "function";
+};
+
 })(window);
 
 /*

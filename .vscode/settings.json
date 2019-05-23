@@ -4,7 +4,7 @@
     "editor.fontSize": 12,
     "editor.rulers": [80],
     "editor.tabSize": 4,
-    "editor.wordWrap": "wordWrapColumn",
+    "editor.wordWrap": "off",
     "editor.wordWrapColumn": 80,
     "editor.autoClosingBrackets": "never",
     "editor.autoClosingQuotes": "never",
@@ -16,16 +16,32 @@
     "editor.suggestOnTriggerCharacters": true,
     "editor.autoIndent": false,
     "editor.matchBrackets": false,
+    "editor.renderIndentGuides": false,
 
     "explorer.autoReveal": true,
     
     "editor.scrollbar.horizontal": "hidden",
     "editor.scrollbar.vertical": "hidden",
+    "editor.smoothScrolling": true,
+    "editor.mouseWheelScrollSensitivity": 2,
     "editor.hideCursorInOverviewRuler": true,
+    "editor.glyphMargin": false,
 
     "workbench.colorTheme": "Visual Studio Dark",
     "workbench.colorCustomizations": {
         "settings.numberInputForeground": "#ff8000",
+        "editorOverviewRuler.errorForeground": "#0000",
+        "editorOverviewRuler.addedForeground": "#0000",
+        "editorOverviewRuler.warningForeground": "#0000",
+        "editorOverviewRuler.infoForeground": "#0000",
+        "editorOverviewRuler.currentContentForeground": "#0000",
+        "editorOverviewRuler.modifiedForeground": "#0000",
+        "editorOverviewRuler.wordHighlightForeground": "#0000",
+        "editorOverviewRuler.rangeHighlightForeground": "#0000",
+        "editorOverviewRuler.commonContentForeground": "#0000",
+        "editorOverviewRuler.selectionHighlightForeground": "#0000",
+        "editorOverviewRuler.wordHighlightStrongForeground": "#0000",
+        "editorOverviewRuler.findMatchForeground": "#0000",
     },
     "editor.tokenColorCustomizations": {
     /*
@@ -43,6 +59,8 @@
     "workbench.settings.editor": "json",
     "workbench.settings.openDefaultSettings": false,
 
+    "scm.diffDecorations": "none",
+
     "eslint.enable": true,
     "eslint.nodePath": "E:/workspace/node_modules",
     "eslint.options": {
@@ -57,7 +75,6 @@
 
     "window.menuBarVisibility": "default",
     
-    "git.path": "C:/Users/User/AppData/Local/GitHubDesktop/app-1.6.5/resources/app/git/cmd/git.exe",
 
     "python.pythonPath": "C:/Program Files/Python37/python.exe",
     "python.autoComplete.addBrackets": false,
@@ -84,6 +101,8 @@
 
     */
     "git.ignoreMissingGitWarning": true,
+    "git.path": "C:/Users/User/AppData/Local/GitHubDesktop/app-1.6.5/resources/app/git/cmd/git.exe",
+    "git.enabled": false,
 
     "bracket-pair-colorizer-2" :{
         "showBracketsInGutter": true,
@@ -94,16 +113,16 @@
             /*
             https://en.wikipedia.org/wiki/Web_colors#X11_color_names
             */
-            "OrangeRed",
+            "Fuchsia",
+            "Salmon",
             "Orange",
             "Gold",
+            "Yellow",
+            "GreenYellow",
             "Lime",
-            "DeepSkyBlue",
-            "MediumSlateBlue",
+            "Aqua",
         ],
-        "demo": [[[[[[[[[[[
-
-        ]]]]]]]]]]],
+        "demo": [[[[[[[[[[[[[[[[[[[[[[ ]]]]]]]]]]]]]]]]]]]]]],
         "highlightActiveScope": true,
         "activeScopeCSS": [
             "borderStyle : solid",
