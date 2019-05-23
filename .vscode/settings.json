@@ -20,7 +20,7 @@
 
     "explorer.autoReveal": true,
     
-    "editor.scrollbar.horizontal": "hidden",
+    "editor.scrollbar.horizontal": "show",
     "editor.scrollbar.vertical": "hidden",
     "editor.smoothScrolling": true,
     "editor.mouseWheelScrollSensitivity": 2,
